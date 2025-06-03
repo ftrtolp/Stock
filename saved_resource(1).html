@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<!-- saved from url=(0483)https://agent.minimax.io/vnc/?host=172.17.130.75&token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTI0NDQ0MzQsInVzZXIiOnsiaWQiOiIzODY0MDQ2MDA1ODM0MzgzMzciLCJuYW1lIjoiYW1vbiBrYXNpZHllIiwiYXZhdGFyIjoiaHR0cHM6Ly9jZG4uaGFpbHVvYWkudmlkZW8vbW9zcy9wcm9kLzIwMjUtMDYtMDQtMDQvdXNlci91c2VyX2F2YXRhci8xNzQ4OTgyMTgwNTM1NzU4ODA5LWF2YXRhcl8zODY0MDQ2MDA1ODM0MzgzMzciLCJkZXZpY2VJRCI6IjEwNTkwOTQ4IiwiaXNBbm9ueW1vdXMiOmZhbHNlfX0.ByEHrtXMkHBy1vMjZG7SpOcoJ-Wzu006gXt9X0s0JQ8&chat_id=276204501672022 -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>noVNC</title><style>body {
+      margin: 0;
+      background-color: dimgrey;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    html {
+      height: 100%;
+    }
+
+    #top_bar {
+      background-color: #6e84a3;
+      color: white;
+      font: bold 12px Helvetica;
+      padding: 6px 5px 4px 5px;
+      border-bottom: 1px outset;
+    }
+
+    #status {
+      text-align: center;
+    }
+
+    #screen {
+      flex: 1;
+      /* fill remaining space */
+      overflow: hidden;
+    }</style><script src="./main.71e389b5.js.download"></script></head><body><script>var rfb;
+    var desktopName;
+
+    // When this function is called we have
+    // successfully connected to a server
+    function connectedToServer(e) {
+      status("Connected");
+    }
+
+    // This function is called when we are disconnected
+    function disconnectedFromServer(e) {
+      if (e.detail.clean) {
+        status("Disconnected");
+      } else {
+        status("Something went wrong, connection is closed");
+      }
+    }
+
+    // When this function is called, the server requires
+    // credentials to authenticate
+    function credentialsAreRequired(e) {
+      const password = prompt("Password required:");
+      rfb.sendCredentials({ password: password });
+    }
+
+    // When this function is called we have received
+    // a desktop name from the server
+    function updateDesktopName(e) {
+      desktopName = e.detail.name;
+    }
+
+    // Show a status text in the top bar
+    function status(text) {
+      // document.getElementById('status').textContent = text;
+    }
+
+    // This function extracts the value of one variable from the
+    // query string. If the variable isn't defined in the URL
+    // it returns the default value instead.
+    function readQueryVariable(name, defaultValue) {
+      // A URL with a query parameter can look like this:
+      // https://www.example.com?myqueryparam=myvalue
+      //
+      // Note that we use location.href instead of location.search
+      // because Firefox < 53 has a bug w.r.t location.search
+      const re = new RegExp('.*[?&]' + name + '=([^&#]*)'),
+        match = document.location.href.match(re);
+
+      if (match) {
+        // We have to decode the URL since want the cleartext value
+        return decodeURIComponent(match[1]);
+      }
+
+      return defaultValue;
+    }
+
+    // 初始化VNC连接
+    function initVNC() {
+      console.log("Initializing VNC connection");
+
+      // Read parameters specified in the URL query string
+      // By default, use the host and port of server that served this file
+      const host = readQueryVariable('host', window.location.hostname);
+      let port = readQueryVariable('port', window.location.port);
+      let token = readQueryVariable('token');
+      let chat_id = readQueryVariable('chat_id');
+      const password = readQueryVariable('password');
+      const path = readQueryVariable('path', 'websockify');
+
+      status("Connecting");
+
+      let is_test = location.host.includes('test')
+
+      // Build the websocket URL used to connect
+      let url;
+      if (window.location.protocol === "https:") {
+        url = 'wss';
+      } else {
+        url = 'ws';
+      }
+      url += '://';
+
+      if (is_test) url += location.host;
+      else url += 'agent-internal.minimax.io'
+
+      url += '/ws?host=' + host;
+
+
+      if (token) {
+        url += '&token=' + token;
+      }
+
+      if (chat_id) {
+        url += '&chat_id=' + chat_id;
+      }
+
+      // Ensure the screen element exists before attempting to use RFB
+      const screenElement = document.getElementById('screen');
+      if (!screenElement) {
+        status("Error: Screen element not found");
+        console.error("Required DOM element #screen not found");
+        return;
+      }
+
+      // 检查RFB类型
+      console.log("RFB constructor type:", typeof RFB);
+
+      try {
+        if (typeof RFB === 'function') {
+          // 创建RFB实例
+          rfb = new RFB(screenElement, url, { credentials: { password: password } });
+
+          // Add listeners to important events from the RFB module
+          rfb.addEventListener("connect", connectedToServer);
+          rfb.addEventListener("disconnect", disconnectedFromServer);
+          rfb.addEventListener("credentialsrequired", credentialsAreRequired);
+          rfb.addEventListener("desktopname", updateDesktopName);
+
+          // Set parameters that can be changed on an active connection
+          rfb.viewOnly = readQueryVariable('view_only', false);
+          rfb.scaleViewport = readQueryVariable('scale', false);
+        } else {
+          status("Error: RFB is not a constructor function.");
+          console.error("RFB is not a function. Type:", typeof RFB);
+        }
+      } catch (err) {
+        status("Error initializing RFB: " + err.message);
+        console.error("Error initializing RFB:", err);
+      }
+    }
+
+    // 在页面加载完成后初始化
+    window.addEventListener('DOMContentLoaded', function () {
+      // 给脚本加载一点延迟，确保RFB类已完全准备好
+      setTimeout(initVNC, 100);
+    });</script><div id="screen"><div style="display: flex; width: 100%; height: 100%; overflow: auto; background: rgb(40, 40, 40);"><canvas width="1280" height="720" tabindex="-1" style="margin: auto; outline: none; cursor: url(&quot;data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAAAXNSR0IArs4c6QAAAg9JREFUSEvtlLtrKkEUxj9fxFWzKOJbrOxME7RREUEQfPVa2qS2SikW2gUDgfwNqVLGB3ZaWGlhYSf4Qix9IiyuzmUGkiK5ejfhym3ugWWXYef7zfnOOSPDhUN2YX38W8ButyOCIMBgMPz4ICc3UvFsNovr62uUSiXYbLYfQU5uIoSQeDxOT4+npyeYzebLAIxGI8rlMqxW698HhEIhmEwmvL6+ghACpVL5bchZi25ubmCxWJDL5VAoFJDJZHB3dweVSgWe5yXBzgIcDge1Bj6fD29vb3A6nXh5eUEqlcLz8zNub29xOBzO1ucLYDabEbvdzuZPo9GAftP3YDBga8ViEfl8Hul0Gv1+n621Wi1wHPfbw35ZvL+/Jw8PD8xzmUzGarBYLCCKIhMLBAJot9vw+/3odDrY7/dYr9cnLfsCCIfDpNlsfgA+XyVyuRzH45EW/AMqGTCZTEgwGMR0Ov0A0Dpst1totVomulqtoFar2UMzHI1G0jPYbDbEZrMxQa/Xi263i2QyiVqthlgsBoVCgUqlgmg0iuFwyLqJ1kFyBqIokqurK9YZ78FxHBNsNBosg0gkgnq9Do/Hw6zq9XrSAYIgEJ7nQS+47wTNWKfTSeuiRCJBqtXqWX29Xs/8p0Gn/fHxEW63WxpgPB4Tl8t1ErBcLlkDvMd8Pqd2nRxYSeP+Hbs+//sf8Ef3Lm7RL+yI3BnAr7J3AAAAAElFTkSuQmCC&quot;) 8 5, default; width: 1280px; height: 720px;"></canvas></div></div></body></html>
